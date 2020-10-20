@@ -6,6 +6,28 @@ export class Homework extends cdk8s.Chart {
   constructor(scope: Construct, name: string) {
     super(scope, name);
 
+    // Defines nginx config
+    const conf = new k8s.ConfigMap(this, 'NginxConf', {
+      metadata: {
+        name: 'nginx-conf',
+      },
+    });
+    conf.addFile(`${__dirname}/asset/default.conf`, 'default.conf');
+    
+    // Defines config volume
+    const configVolume = k8s.Volume.fromConfigMap(conf, {
+      name: `nginx-conf`,
+      items: {
+        'default.conf': {
+          path: 'default.conf',
+        },
+      },
+    });
+    
+    // Defines log volume
+    const logVolume = k8s.Volume.fromEmptyDir('log');
+
+    // Defines database secret
     const dbSecret = new k8s.Secret(this, 'DbSecret', {
       metadata: {
         name: 'db-secret',
@@ -18,13 +40,14 @@ export class Homework extends cdk8s.Chart {
       },
     });
 
+    
+    // Setup database
     const db = new k8s.Service(this, 'DatabaseService', {
       metadata: {
         name: 'mysql-service',
       },
       type: k8s.ServiceType.CLUSTER_IP,
     });
-
     db.addDeployment(new k8s.Deployment(this, 'Database', {
       metadata: {
         name: 'mysql-deployment'
@@ -42,6 +65,8 @@ export class Homework extends cdk8s.Chart {
       ],
     }), 3306);
     
+
+    // Setup wordpress
     const wordpress = new k8s.Service(this, 'WordpressService', {
       metadata: {
         name: 'wordpress-service',
@@ -65,31 +90,13 @@ export class Homework extends cdk8s.Chart {
       ],
     }), 80);
 
-    const conf = new k8s.ConfigMap(this, 'NginxConf', {
-      metadata: {
-        name: 'nginx-conf',
-      },
-    });
-    conf.addFile(`${__dirname}/asset/default.conf`, 'default.conf');
-    
-    const configVolume = k8s.Volume.fromConfigMap(conf, {
-      name: `nginx-conf`,
-      items: {
-        'default.conf': {
-          path: 'default.conf',
-        },
-      },
-    });
-    
-    const logVolume = k8s.Volume.fromEmptyDir('log');
-
+    // Setup nginx
     const nginx = new k8s.Service(this, 'NginxService', {
       metadata: {
         name: 'nginx-service'
       },
       type: k8s.ServiceType.LOAD_BALANCER,
     });
-
     nginx.addDeployment(new k8s.Deployment(this, 'Nginx', {
       metadata: {
         name: 'nginx',
@@ -117,6 +124,7 @@ export class Homework extends cdk8s.Chart {
       ],
     }), 80);
     
+    // Setup ingress to nginx
     new k8s.Ingress(this, 'Ingress', {
       metadata: {
         name: 'ingress',
