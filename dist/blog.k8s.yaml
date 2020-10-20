@@ -8,6 +8,18 @@ stringData:
   MYSQL_ROOT_PASSWORD: "wqpejmo3n cpmo248"
   MYSQL_USER: "wordpress"
 ---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "mysql-service"
+spec:
+  externalIPs: []
+  ports:
+    - port: 3306
+  selector:
+    cdk8s.deployment: "blog-Database-f5b51dd5"
+  type: "ClusterIP"
+---
 apiVersion: "apps/v1"
 kind: "Deployment"
 metadata:
@@ -54,13 +66,13 @@ spec:
 apiVersion: "v1"
 kind: "Service"
 metadata:
-  name: "mysql-service"
+  name: "wordpress-service"
 spec:
   externalIPs: []
   ports:
-    - port: 3306
+    - port: 80
   selector:
-    cdk8s.deployment: "blog-Database-f5b51dd5"
+    cdk8s.deployment: "blog-Wordpress-a81832a4"
   type: "ClusterIP"
 ---
 apiVersion: "apps/v1"
@@ -104,18 +116,6 @@ spec:
       volumes: []
 ---
 apiVersion: "v1"
-kind: "Service"
-metadata:
-  name: "wordpress-service"
-spec:
-  externalIPs: []
-  ports:
-    - port: 80
-  selector:
-    cdk8s.deployment: "blog-Wordpress-a81832a4"
-  type: "ClusterIP"
----
-apiVersion: "v1"
 data:
   default.conf: "server {
 
@@ -148,6 +148,18 @@ data:
 kind: "ConfigMap"
 metadata:
   name: "nginx-conf"
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "nginx-service"
+spec:
+  externalIPs: []
+  ports:
+    - port: 80
+  selector:
+    cdk8s.deployment: "blog-Nginx-f6ab34c6"
+  type: "LoadBalancer"
 ---
 apiVersion: "apps/v1"
 kind: "Deployment"
@@ -190,18 +202,6 @@ spec:
           name: "nginx-conf"
         - emptyDir: {}
           name: "log"
----
-apiVersion: "v1"
-kind: "Service"
-metadata:
-  name: "nginx-service"
-spec:
-  externalIPs: []
-  ports:
-    - port: 80
-  selector:
-    cdk8s.deployment: "blog-Nginx-f6ab34c6"
-  type: "LoadBalancer"
 ---
 apiVersion: "networking.k8s.io/v1beta1"
 kind: "Ingress"

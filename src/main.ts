@@ -18,7 +18,14 @@ export class Homework extends cdk8s.Chart {
       },
     });
 
-    const db = new k8s.Deployment(this, 'Database', {
+    const db = new k8s.Service(this, 'DatabaseService', {
+      metadata: {
+        name: 'mysql-service',
+      },
+      type: k8s.ServiceType.CLUSTER_IP,
+    });
+
+    db.addDeployment(new k8s.Deployment(this, 'Database', {
       metadata: {
         name: 'mysql-deployment'
       },
@@ -33,17 +40,15 @@ export class Homework extends cdk8s.Chart {
           },
         }),
       ],
-    });
-
-    const dbService = new k8s.Service(this, 'DatabaseService', {
+    }), 3306);
+    
+    const wordpress = new k8s.Service(this, 'WordpressService', {
       metadata: {
-        name: 'mysql-service',
+        name: 'wordpress-service',
       },
       type: k8s.ServiceType.CLUSTER_IP,
     });
-    dbService.addDeployment(db, 3306);
-
-    const wordpress = new k8s.Deployment(this, 'Wordpress', {
+    wordpress.addDeployment(new k8s.Deployment(this, 'Wordpress', {
       metadata: {
         name: 'wordpress-deployment'
       },
@@ -51,31 +56,23 @@ export class Homework extends cdk8s.Chart {
         new k8s.Container({
           image: 'wordpress:php7.2',
           env: {
-            WORDPRESS_DB_HOST: k8s.EnvValue.fromValue(dbService.name),
+            WORDPRESS_DB_HOST: k8s.EnvValue.fromValue(db.name),
             WORDPRESS_DB_USER: k8s.EnvValue.fromSecret(dbSecret, 'MYSQL_USER'),
             WORDPRESS_DB_PASSWORD: k8s.EnvValue.fromSecret(dbSecret, 'MYSQL_PASSWORD'),
             WORDPRESS_DB_NAME: k8s.EnvValue.fromSecret(dbSecret, 'MYSQL_DATABASE'),
           },
         }),
       ],
-    });
-    
-    const wordpressService = new k8s.Service(this, 'WordpressService', {
-      metadata: {
-        name: 'wordpress-service',
-      },
-      type: k8s.ServiceType.CLUSTER_IP,
-    });
-    wordpressService.addDeployment(wordpress, 80);
+    }), 80);
 
-    const nginxConfing = new k8s.ConfigMap(this, 'NginxConf', {
+    const conf = new k8s.ConfigMap(this, 'NginxConf', {
       metadata: {
         name: 'nginx-conf',
-      }
+      },
     });
-    nginxConfing.addFile(`${__dirname}/asset/default.conf`, 'default.conf');
+    conf.addFile(`${__dirname}/asset/default.conf`, 'default.conf');
     
-    const configVolume = k8s.Volume.fromConfigMap(nginxConfing, {
+    const configVolume = k8s.Volume.fromConfigMap(conf, {
       name: `nginx-conf`,
       items: {
         'default.conf': {
@@ -83,10 +80,17 @@ export class Homework extends cdk8s.Chart {
         },
       },
     });
-
+    
     const logVolume = k8s.Volume.fromEmptyDir('log');
 
-    const nginx = new k8s.Deployment(this, 'Nginx', {
+    const nginx = new k8s.Service(this, 'NginxService', {
+      metadata: {
+        name: 'nginx-service'
+      },
+      type: k8s.ServiceType.LOAD_BALANCER,
+    });
+
+    nginx.addDeployment(new k8s.Deployment(this, 'Nginx', {
       metadata: {
         name: 'nginx',
       },
@@ -111,21 +115,13 @@ export class Homework extends cdk8s.Chart {
           image: `fluent/fluentd:v1.9-1`,
         }),
       ],
-    });
-
-    const nginxService = new k8s.Service(this, 'NginxService', {
-      metadata: {
-        name: 'nginx-service'
-      },
-      type: k8s.ServiceType.LOAD_BALANCER,
-    });
-    nginxService.addDeployment(nginx, 80);
-
+    }), 80);
+    
     new k8s.Ingress(this, 'Ingress', {
       metadata: {
         name: 'ingress',
       },
-      defaultBackend: k8s.IngressBackend.fromService(nginxService),
+      defaultBackend: k8s.IngressBackend.fromService(nginx),
     });
   }
 }
