@@ -33,6 +33,51 @@ metadata:
   name: "nginx-conf"
 ---
 apiVersion: "v1"
+data:
+  fluent.conf: "<source>
+
+    \  type tail
+
+    \  path /logs/**/access.log
+
+    \  tag nginx.access
+
+    \  format nginx
+
+    </source>
+
+
+    <source>
+
+    \  @type tail
+
+    \  format /^(?<time>\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2})
+    \\[(?<log_level>\\w+)\\] (?<pid>\\d+).(?<tid>\\d+): (?<message>.*)$/
+
+    \  tag nginx.error
+
+    \  path /logs/**/error.log
+
+    </source>
+
+
+    <match nginx.access>
+
+    \  @type stdout
+
+    </match>
+
+
+    <match nginx.error>
+
+    \  @type stdout
+
+    </match>"
+kind: "ConfigMap"
+metadata:
+  name: "fluentd-conf"
+---
+apiVersion: "v1"
 kind: "Secret"
 metadata:
   name: "db-secret"
@@ -192,7 +237,10 @@ spec:
           imagePullPolicy: "Always"
           name: "logger"
           ports: []
-          volumeMounts: []
+          volumeMounts:
+            - mountPath: "/fluentd/etc"
+              name: "fluentd-conf"
+              readOnly: true
       volumes:
         - configMap:
             items:
@@ -202,6 +250,12 @@ spec:
           name: "nginx-conf"
         - emptyDir: {}
           name: "log"
+        - configMap:
+            items:
+              - key: "fluent.conf"
+                path: "fluent.conf"
+            name: "fluentd-conf"
+          name: "fluentd-conf"
 ---
 apiVersion: "networking.k8s.io/v1beta1"
 kind: "Ingress"
